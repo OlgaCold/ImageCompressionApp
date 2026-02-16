@@ -142,12 +142,10 @@ public:
     }
 
     bool readBit() {
-        //std::cout << "readBit";// << std::endl;
-        //std::cout << "currentByte: " << std::bitset<8>(currentByte) << std::endl;
         if (currentByte >= _byteBuffer.size()) {
             throw std::runtime_error("End of buffer");
         }
-
+        //std::cout << std::bitset<8>(_byteBuffer[currentByte]) << " *"<< std::endl;
         bool bit = (_byteBuffer[currentByte] >> (7 - bitIndex)) & 1;
         bitIndex++;
         if (bitIndex == 8) {
@@ -158,7 +156,7 @@ public:
         return bit;
     }
 
-        // читає n бітів і повертає у uint8_t (max 8 біт)
+    // читає n бітів і повертає у uint8_t (max 8 біт)
     uint8_t readBits(int n) {
         std::cout << "readBits" << std::endl;
         uint8_t value = 0;

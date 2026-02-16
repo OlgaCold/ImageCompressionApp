@@ -116,11 +116,12 @@ void ImageHandler::_decodePixels(BitPacker& bitPacker, unsigned char* imgData, s
     std::cout << "_decodePixels" << std::endl;
     std::vector<unsigned char> temp;
 
-    int totalPixels = 825*2;
+    int totalPixels = 825*68;
     int decodedPixels = 0;
 
-
-    for (size_t row = 0; row < 66/*emptyRows.size()*/; ++row) { //2 non empty rows
+    for (size_t row = 0; row < 69/*emptyRows.size()*/; ++row) { //2 non empty rows
+        std::cout << std::dec<<  "vector capacity " << temp.capacity() << std::endl;
+        std::cout << std::dec<<  "vector size " << temp.size() << std::endl;
         if (emptyRows[row]) {
             std::cout << "row " << row << std::endl;
             temp.insert(temp.end(), 825/*width*/, 0xFF);
@@ -304,7 +305,7 @@ void ImageHandler::compressImage(const std::string& inputFilename, const std::st
     BitPacker bitPacker;
 
     // for now encode only 65th row (first non emty)
-    for (int j = 65; j < 67; ++j) {
+    for (int j = 65; j < 70; ++j) {
         if (emptyRows[j]) continue; // don`t encode empty rows
 
         std::cout << std::dec << "Row pixels of " << j << std::endl;
