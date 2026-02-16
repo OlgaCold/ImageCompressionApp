@@ -19,15 +19,15 @@ int main(/*int argc, char *argv[]*/)
     //}, Qt::QueuedConnection);
     //engine.load(url);
 
-    Compression *lib = new Compression();
+    ImageHandler *lib = new ImageHandler();
 
+    const std::string inputFilename = "../resources/test-image-2-gs.bmp";
     const std::string compressedFilename = "compressed_image.barch";
-    //lib->_readBMP("../resources/test-image-1-gs.bmp");
-    lib->compressImage("../resources/test-image-2-gs.bmp", compressedFilename);
+    const std::string restoredFilename = "restored_image.bmp";
 
-    //lib->restoreImage(compressedFilename);
+    lib->compressImage(inputFilename, compressedFilename);
 
-    //std::string restoredFilename = "restored_image.bmp";
+    lib->restoreImage(compressedFilename, restoredFilename);
 
     std::cout << "Testing complete." << std::endl;
 
