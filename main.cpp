@@ -21,7 +21,7 @@ int main(/*int argc, char *argv[]*/)
 
     ImageHandler *lib = new ImageHandler();
 
-    const std::string inputFilename = "../resources/test-image-2-gs.bmp";
+    const std::string inputFilename = "../resources/test-image-1-gs.bmp";
     const std::string compressedFilename = "compressed_image.barch";
     const std::string restoredFilename = "restored_image.bmp";
 

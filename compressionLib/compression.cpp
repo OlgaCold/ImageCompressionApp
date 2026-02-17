@@ -2,10 +2,98 @@
 #include <iomanip>
 #include <cstring>
 
-ImageHandler::ImageHandler(/*Compressor& cp*/) /*: bitPacker(cp)*/ {}
-
 RawImageData::~RawImageData() {
     delete[] data;
+}
+
+// Write operations
+void BitPacker::flush() {
+    if (bitIndex > 0) {
+        _byteBuffer.push_back(writeByte);
+        writeByte = 0;
+        bitIndex = 0;
+    }
+}
+
+void BitPacker::pushBit(bool bit) {
+    writeByte |= (static_cast<uint8_t>(bit) << (7 - bitIndex));
+    ++bitIndex;
+    if (bitIndex == 8) {
+        _byteBuffer.push_back(writeByte);
+        writeByte = 0;
+        bitIndex = 0;
+    }
+}
+
+void BitPacker::pushBits(const std::vector<bool>& bits) {
+    for (bool bit : bits) {
+        pushBit(bit);
+    }
+}
+
+void BitPacker::pushByte(uint8_t byte) {
+    for (int i = 7; i >= 0; --i) {
+        pushBit((byte >> i) & 1);
+    }
+}
+
+std::vector<uint8_t> BitPacker::getBuffer() const {
+    return _byteBuffer;
+}
+
+// Read operations
+void BitPacker::setBuffer(std::vector<uint8_t>&& data) {
+    _byteBuffer = std::move(data);
+    readIndex = 0;
+    bitIndex = 0;
+}
+
+bool BitPacker::eof() const {
+    return readIndex >= _byteBuffer.size();
+}
+
+bool BitPacker::readBit() {
+    if (eof()) {
+        throw std::runtime_error("Attempted to read beyond end of buffer");
+    }
+    bool bit = (_byteBuffer[readIndex] >> (7 - bitIndex)) & 1;
+    ++bitIndex;
+    if (bitIndex == 8) {
+        bitIndex = 0;
+        ++readIndex;
+    }
+    return bit;
+}
+
+uint8_t BitPacker::readBits(int n) {
+    if (n > 8 || n < 0) {
+        throw std::invalid_argument("Cannot read more than 8 bits");
+    }
+    uint8_t value = 0;
+    for (int i = 0; i < n; ++i) {
+        if (eof()) {
+            throw std::runtime_error("Unexpected end of buffer while reading bits");
+        }
+        value <<= 1;
+        value |= readBit() ? 1 : 0;
+    }
+    return value;
+}
+
+void BitPacker::printBinBuffer() const {
+    std::cout << "Buffer in bin format: " << std::endl;
+    for (auto byte : _byteBuffer) {
+        std::cout << std::bitset<8>(byte);
+    }
+    std::cout << std::endl;
+}
+
+void BitPacker::printHexBuffer() const {
+    std::cout << "Buffer in hex format: " << std::endl;
+    for (size_t k = 0; k < _byteBuffer.size(); ++k) {
+        std::cout << std::hex << static_cast<int>(_byteBuffer[k]) << " ";
+    }
+    std::cout << std::endl;
 }
 
 void ImageHandler::writeToFile(const std::string& filename,
@@ -16,7 +104,7 @@ void ImageHandler::writeToFile(const std::string& filename,
     std::ofstream file(filename, std::ios::binary);
 
     if (!file) {
-        std::cerr << "Can`t open file to write!" << std::endl;
+        std::cerr << "Can't open file to write!" << std::endl;
         return;
     }
 
@@ -31,12 +119,8 @@ void ImageHandler::writeToFile(const std::string& filename,
     file.write(reinterpret_cast<const char*>(&height), sizeof(height));
 
     // 4. Empty rows index (bool values)
-
-    // Pack vector to bytes
     size_t bitCount = emptyRows.size();
-    std::cout<<std::dec<< "bitCount "<< bitCount <<std::endl;
-    size_t byteCount = (bitCount + 7) / 8;// every 8bit = 2 bytes
-    std::cout<<"byteCount "<< byteCount <<std::endl;
+    size_t byteCount = (bitCount + 7) / 8; // 8 bits = 1 byte
     std::vector<uint8_t> rowIndex(byteCount, 0);
 
     for (size_t i = 0; i < bitCount; ++i) {
@@ -47,10 +131,13 @@ void ImageHandler::writeToFile(const std::string& filename,
 
     file.write(reinterpret_cast<const char*>(rowIndex.data()), rowIndex.size());
 
-    // 5. Write encoded image data (vector uint8_t)
+    // 5. Write size of compressed data (4 bytes)
+    uint32_t compressedSize = static_cast<uint32_t>(compressedData.size());
+    file.write(reinterpret_cast<const char*>(&compressedSize), sizeof(compressedSize));
+
+    // 6. Write encoded image data (vector<uint8_t>)
     file.write(reinterpret_cast<const char*>(compressedData.data()), compressedData.size());
 
-    // Close file
     file.close();
     std::cout << "Successfully created barch file" << std::endl;
 }
@@ -61,7 +148,7 @@ RawImageData ImageHandler::_readBMP(const std::string &filename) {
         throw std::runtime_error("Unable to open file");
     }
 
-    RawImageData img;
+    RawImageData img{};
     BitmapFileHeader fileHeader;
     file.read(reinterpret_cast<char*>(&fileHeader), sizeof(fileHeader));
 
@@ -69,77 +156,98 @@ RawImageData ImageHandler::_readBMP(const std::string &filename) {
         throw std::runtime_error("Not a BMP file");
     }
 
-    // read first 4 bytes - DIB
+    // Read DIB header size
     uint32_t dibSize;
     file.read(reinterpret_cast<char*>(&dibSize), sizeof(dibSize));
 
-    // return 4 bites back
+    // Go back to read proper header
     file.seekg(-4, std::ios::cur);
 
-    if (dibSize == 124) {
+    if (dibSize == 124) { // BITMAPV5HEADER
         BitmapV5Header dibHeader;
         file.read(reinterpret_cast<char*>(&dibHeader), sizeof(dibHeader));
 
         std::cout << "Width: " << dibHeader.biWidth << "\n";
         std::cout << "Height: " << dibHeader.biHeight << "\n";
         std::cout << "BitCount: " << dibHeader.biBitCount << "\n";
-        std::cout << "dibHeader.biHeight: " << dibHeader.biHeight << "\n";
-        img.width = dibHeader.biWidth;
-        img.height = dibHeader.biHeight;
-    }
-    else {
+
+        img.width = static_cast<int>(dibHeader.biWidth);
+        img.height = static_cast<int>(dibHeader.biHeight);
+    } else {
         throw std::runtime_error("Unsupported BMP header type");
     }
 
-    img.data = new unsigned char[img.width * img.height];
+    // Allocate memory for image data (without padding)
+    img.data = new unsigned char[static_cast<size_t>(img.width) * static_cast<size_t>(img.height)];
 
+    // Calculate padding for BMP rows
     int padding = (4 - (img.width % 4)) % 4;
-    std::cout << "padding: " << padding << "\n";
-    int rowSize = img.width + padding;
-    std::cout << "rowSize: " << rowSize << "\n";
 
+    // Seek to pixel data
     file.seekg(fileHeader.bfOffBits);
-    std::vector<unsigned char> row(rowSize);
-    for (int j = img.height - 1; j >= 0; --j) {
-        file.read(reinterpret_cast<char*>(row.data()), rowSize);
 
-        for (int i = 0; i < img.width; ++i) {
-            img.data[j * img.width + i] = row[i];
-        }
+    // Read image data (bottom-up, but we'll store it top-down for our purposes)
+    std::vector<unsigned char> row(img.width + padding);
+    for (int j = img.height - 1; j >= 0; --j) {
+        file.read(reinterpret_cast<char*>(row.data()), img.width + padding);
+
+        // Copy only the pixel data (without padding)
+        std::memcpy(img.data + static_cast<size_t>(j) * static_cast<size_t>(img.width), row.data(), img.width);
     }
     file.close();
 
     return img;
 }
 
-void ImageHandler::_decodePixels(BitPacker& bitPacker, unsigned char* imgData, std::vector<bool> emptyRows, size_t& outSize) {
+void ImageHandler::_decodePixels(BitPacker& bitPacker, unsigned char* imgData,
+                                const std::vector<bool>& emptyRows,
+                                int width, int height, size_t& outSize) {
     std::cout << "_decodePixels" << std::endl;
     std::vector<unsigned char> temp;
-
-    int totalPixels = 825*1200;
+    int totalPixels = width * height;
     int decodedPixels = 0;
 
-    for (size_t row = 0; row < 1200/*emptyRows.size()*/; ++row) { //2 non empty rows
-        std::cout << std::dec<<  "vector capacity " << temp.capacity() << std::endl;
-        std::cout << std::dec<<  "vector size " << temp.size() << std::endl;
+    // Счетчик для отладки
+    int blockCount = 0;
+    int mixedBlocks = 0;
+    int whiteBlocks = 0;
+    int blackBlocks = 0;
+    int nonEmptyRows = 0;
+
+    for (int row = 0; row < height; ++row) {
         if (emptyRows[row]) {
-            std::cout << "row " << row << std::endl;
-            temp.insert(temp.end(), 825/*width*/, 0xFF);
-            decodedPixels += 825;
-            std::cout << std::dec <<"decodedPixels Empt " << decodedPixels << std::endl;
+            // Empty row - fill with white pixels
+            std::cout << "Row " << row << " is empty, filling with white pixels" << std::endl;
+            temp.insert(temp.end(), width, 0xFF);
+            decodedPixels += width;
         } else {
-            std::cout << "row " << row << std::endl;
+            nonEmptyRows++;
+            std::cout << "Row " << row << " is non-empty, decoding..." << std::endl;
+            // Non-empty row - decode compressed data
             int rowPixels = 0;
-            while (rowPixels < 825) {
-                int pixelsToWrite = std::min(4, 825 - rowPixels);
+            while (rowPixels < width) {
+                int pixelsToWrite = std::min(4, width - rowPixels);
+
+                // Проверяем, что мы не читаем за границы буфера
+                if (bitPacker.eof()) {
+                    std::cerr << "Unexpected EOF in non-empty row " << row
+                              << " at pixel " << rowPixels
+                              << " (rowPixels: " << rowPixels
+                              << ", width: " << width << ")" << std::endl;
+                    std::cerr << "Non-empty rows decoded so far: " << nonEmptyRows << std::endl;
+                    std::cerr << "Total decoded pixels: " << decodedPixels << std::endl;
+                    throw std::runtime_error("Unexpected EOF during decompression");
+                }
+
                 bool firstBit = bitPacker.readBit();
+                blockCount++;
+
                 if (!firstBit) {
                     // 0 → 4 white
                     temp.insert(temp.end(), pixelsToWrite, 0xFF);
                     decodedPixels += pixelsToWrite;
                     rowPixels += pixelsToWrite;
-                    std::cout<<std::dec<<"+ 4 white "<< " ";
-                    std::cout << "rowPixels " << rowPixels << std::endl;
+                    whiteBlocks++;
                 } else {
                     bool secondBit = bitPacker.readBit();
                     if (!secondBit) {
@@ -147,59 +255,46 @@ void ImageHandler::_decodePixels(BitPacker& bitPacker, unsigned char* imgData, s
                         temp.insert(temp.end(), pixelsToWrite, 0x00);
                         decodedPixels += pixelsToWrite;
                         rowPixels += pixelsToWrite;
-                        std::cout<<std::dec<<"+ 4 black "<< " ";
-                        std::cout << "rowPixels " << rowPixels << std::endl;
+                        blackBlocks++;
                     } else {
                         // 11 → 4 mixed
+                        mixedBlocks++;
                         for (int i = 0; i < pixelsToWrite; ++i) {
+                            // Дополнительная проверка безопасности
+                            if (bitPacker.eof()) {
+                                std::cerr << "Unexpected EOF in mixed block at non-empty row "
+                                          << row << ", col " << rowPixels << std::endl;
+                                throw std::runtime_error("Unexpected EOF while reading mixed block");
+                            }
+
                             uint8_t color = bitPacker.readBits(8);
                             temp.push_back(color);
                         }
                         decodedPixels += pixelsToWrite;
                         rowPixels += pixelsToWrite;
-                        std::cout<<std::dec<<"+ 4 mixed "<< " ";
-                        std::cout << "rowPixels " << rowPixels << std::endl;
                     }
                 }
             }
-            //std::cout<<std::dec<<"- 3 additional "<< " ";
-            /*for (int i = 0; i<3; ++i) {
-                temp.pop_back();
-                decodedPixels -= 1;
-                rowPixels -= 1;
-            }*/
-            /*for (int i = 0; i<24; ++i) { //to read to the end of prev block
-                bitPacker.readBit();
-            }*/
-            std::cout << "decodedPixels All " << decodedPixels << std::endl;
-            std::cout << "rowPixels " << rowPixels << std::endl;
         }
     }
-    //std::cout<<std::dec<<"decodedPixels All "<< decodedPixels<<std::endl;
 
-    //std::cout << "Row 65 pixels vector restored" << std::endl;
-    //for (size_t i = 0; i < temp.size(); ++i) {
-    //    std::cout << std::hex << std::setw(2) << std::setfill('0')<< static_cast<int>(temp[i]) << " ";
-    //}
-    //std::cout<<std::endl;
+    std::cout << "Blocks: " << blockCount
+              << " (White: " << whiteBlocks
+              << ", Black: " << blackBlocks
+              << ", Mixed: " << mixedBlocks << ")" << std::endl;
+    std::cout << "Non-empty rows: " << nonEmptyRows << std::endl;
+    std::cout << "Decoded pixels: " << decodedPixels
+              << " / " << totalPixels << std::endl;
 
-    outSize = totalPixels;
-    std::cout<< std::dec << "outSize " << outSize << std::endl;
+    outSize = static_cast<size_t>(totalPixels);
     size_t copySize = std::min(temp.size(), static_cast<size_t>(outSize));
+
+    if (copySize < outSize) {
+        std::cerr << "Warning: decoded " << copySize
+                  << " pixels, expected " << outSize << std::endl;
+    }
+
     std::memcpy(imgData, temp.data(), copySize);
-
-    /*std::cout << "Row 65 pixels char restored" << std::endl;
-    for (size_t i = 0; i < outSize; ++i) {
-        std::cout << std::hex
-                  << std::setw(2)
-                  << std::setfill('0')
-                  << static_cast<int>(imgData[i])
-                  << " ";
-    }*/
-
-    //std::cout << std::dec << std::endl;
-
-    return;// data;
 }
 
 RawImageData ImageHandler::_readBarch(const std::string &compressedFilename) {
@@ -208,34 +303,27 @@ RawImageData ImageHandler::_readBarch(const std::string &compressedFilename) {
         throw std::runtime_error("Cannot open file");
     }
 
-    RawImageData img;
+    RawImageData img{};
 
     // Read format
     char format[2];
     file.read(format, 2);
-
     if (format[0] != 'B' || format[1] != 'A') {
         throw std::runtime_error("Invalid file format");
     }
-    std::cout<< "format " << format[0] << format[1] << std::endl;
 
-    // Read width
+    // Read width and height
     file.read(reinterpret_cast<char*>(&img.width), sizeof(img.width));
-    std::cout<< std::dec << "img.width " << img.width << std::endl;
-
-    // Read height
     file.read(reinterpret_cast<char*>(&img.height), sizeof(img.height));
-    std::cout<< std::dec << "img.height " << img.height << std::endl;
 
     // EmptyRows size = height
-    size_t bitCount = img.height;
+    size_t bitCount = static_cast<size_t>(img.height);
     size_t byteCount = (bitCount + 7) / 8;
-    std::cout<< std::dec << "byteCount " << byteCount << std::endl;
 
     std::vector<uint8_t> rowBytes(byteCount);
     file.read(reinterpret_cast<char*>(rowBytes.data()), byteCount);
 
-    // Bits to vector<bool>
+    // Convert bytes to vector<bool>
     std::vector<bool> emptyRows;
     emptyRows.resize(bitCount);
 
@@ -245,41 +333,39 @@ RawImageData ImageHandler::_readBarch(const std::string &compressedFilename) {
         emptyRows[i] = bit;
     }
 
-    std::cout << "emptyRows "<< std::endl;
-    for (size_t i = 0; i < emptyRows.size(); ++i) {
-        std::cout << emptyRows[i] << " ";
+    // Count non-empty rows for debugging
+    int nonEmptyRows = 0;
+    for (bool empty : emptyRows) {
+        if (!empty) nonEmptyRows++;
     }
-    std::cout << std::endl;
+    std::cout << "Number of non-empty rows: " << nonEmptyRows << std::endl;
 
-    // size of image data
-    std::streampos currentPos = file.tellg();
-    file.seekg(0, std::ios::end);
-    std::streampos endPose = file.tellg();
+    // Read compressed data size
+    uint32_t compressedSize;
+    file.read(reinterpret_cast<char*>(&compressedSize), sizeof(compressedSize));
+    if (!file) {
+        throw std::runtime_error("Failed to read compressed size");
+    }
 
-    std::size_t dataSize = static_cast<std::size_t>(endPose - currentPos);
-    std::cout << "dataSize " << dataSize << std::endl;
+    std::cout << "Image dimensions: " << img.width << "x" << img.height << std::endl;
+    std::cout << "Compressed data size: " << compressedSize << " bytes" << std::endl;
 
-    // return to current
-    file.seekg(currentPos);
+    // Allocate memory for image data
+    img.data = new unsigned char[static_cast<size_t>(img.width) * static_cast<size_t>(img.height)];
 
-    img.data = new unsigned char[img.width*img.height];
-    std::cout<<"img.width*img.height " << img.width*img.height << std::endl;
-    BitPacker dataFromBarch;
-    std::vector<uint8_t> codedBufferFromBarch(dataSize);
-
-    // Read data image
-    file.read(reinterpret_cast<char*>(codedBufferFromBarch.data()), dataSize);
-
-    dataFromBarch.setBuffer(std::move(codedBufferFromBarch));
-
-    dataFromBarch.printBinBuffer();
-    dataFromBarch.printHexBuffer();
+    // Read compressed data
+    BitPacker bitPacker;
+    std::vector<uint8_t> codedBuffer(compressedSize);
+    file.read(reinterpret_cast<char*>(codedBuffer.data()), compressedSize);
+    if (!file) {
+        throw std::runtime_error("Failed to read compressed data");
+    }
+    bitPacker.setBuffer(std::move(codedBuffer));
 
     size_t outSize = 0;
-    _decodePixels(dataFromBarch, img.data, emptyRows, outSize);
+    _decodePixels(bitPacker, img.data, emptyRows, img.width, img.height, outSize);
 
-    createBMPTest("restored_image.bmp", img, outSize);
-
+    file.close();
     return img;
 }
 
@@ -288,9 +374,9 @@ void ImageHandler::compressImage(const std::string& inputFilename, const std::st
     int width = img.width;
     int height = img.height;
 
-    // empty rows
+    // Determine empty rows
     std::vector<bool> emptyRows(height, false);
-    std::cout << "Empty index" << std::endl;
+    int nonEmptyRows = 0;
     for (int j = 0; j < height; ++j) {
         bool empty = true;
         for (int i = 0; i < width; ++i) {
@@ -300,25 +386,21 @@ void ImageHandler::compressImage(const std::string& inputFilename, const std::st
             }
         }
         emptyRows[j] = empty;
+        if (!empty) nonEmptyRows++;
     }
 
-    // non empty rows
+    std::cout << "Number of non-empty rows: " << nonEmptyRows << std::endl;
+
+    // Compress non-empty rows
     BitPacker bitPacker;
 
-    // for now encode only 65th row (first non emty)
     for (int j = 0; j < height; ++j) {
-        if (emptyRows[j]) continue; // don`t encode empty rows
-
-        std::cout << std::dec << "Row pixels of " << j << std::endl;
-        for (int i = 0; i < width; ++i) {
-            std::cout << std::hex << std::setw(2) << std::setfill('0')<< static_cast<int>(img.data[j * width + i]) << " ";
-        }
-        std::cout<<std::endl;
+        if (emptyRows[j]) continue; // Skip empty rows
 
         for (int i = 0; i < width; i += 4) {
-            uint8_t block[4] = {0xFF, 0xFF, 0xFF, 0xFF}; // default
+            uint8_t block[4] = {0xFF, 0xFF, 0xFF, 0xFF};
             int blockSize = std::min(4, width - i);
-            //std::cout<< "blockSize " << blockSize << std::endl;
+
             for (int k = 0; k < blockSize; ++k) {
                 block[k] = img.data[j * width + i + k];
             }
@@ -330,69 +412,42 @@ void ImageHandler::compressImage(const std::string& inputFilename, const std::st
             }
 
             if (allWhite) {
-                //std::cout<< "White block " << std::endl;
                 bitPacker.pushBit(0); // 4 white
-                //bitPacker.printBinBuffer();
             } else if (allBlack) {
-                //std::cout<< "Black block " << std::endl;
                 bitPacker.pushBits({1, 0}); // 4 black
-                //bitPacker.printBinBuffer();
             } else {
-                //std::cout<< "Mixed block " << std::endl;
                 bitPacker.pushBits({1, 1}); // mixed identifier
-                //bitPacker.printBinBuffer();
                 for (int k = 0; k < blockSize; ++k) {
-                    //std::cout << std::hex <<  static_cast<int>(block[k]) << std::endl;
                     bitPacker.pushByte(block[k]);
                 }
-                //bitPacker.printBinBuffer();
             }
-            // add padding for block <  4
-            /*if (blockSize < 4) {
-                std::cout<< "Added padding, block size was " << blockSize << std::endl;
-                for (int k = blockSize; k < 4; ++k) {
-                    bitPacker.pushByte(0xFF);
-                }
-            }*/
         }
     }
+
     bitPacker.flush();
-    std::cout << "All rows encoded" << std::endl;
-    //std::cout << "Row 65 encoded" << std::endl;
 
-    std::cout << std::dec << "bitPacker.getBuffer().size() " << bitPacker.getBuffer().size() << std::endl;
-    for (size_t i = 0; i < bitPacker.getBuffer().size(); ++i) {
-        std::cout << std::hex <<  static_cast<int>(bitPacker.getBuffer()[i]) << " ";
-    }
-    std::cout<<std::endl;
-
-    // Write to barch
+    // Write to barch file
     writeToFile(outputFilename, emptyRows, bitPacker.getBuffer(), width, height);
 }
 
 void ImageHandler::restoreImage(const std::string& compressedFilename, const std::string &restoredFilename) {
-    std::cout<< "restoreImage" << std::endl;
+    std::cout << "restoreImage" << std::endl;
 
-    RawImageData img = _readBarch(compressedFilename);
-
-    //createBMPTest(restoredFilename, img, 825);
-
-    return;
+    try {
+        RawImageData img = _readBarch(compressedFilename);
+        createBMPTest(restoredFilename, img);
+    } catch (const std::exception& e) {
+        std::cerr << "Error during restore: " << e.what() << std::endl;
+        throw;
+    }
 }
 
-void ImageHandler::createBMPTest(const std::string &filename, const RawImageData &img, size_t outSize)
-{
-    std::cout<<"createBMPTest"<< std::endl;
+void ImageHandler::createBMPTest(const std::string &filename, const RawImageData &img) {
+    std::cout << "createBMPTest" << std::endl;
     int width = img.width;
-    std::cout<<"width "<< width << std::endl;
     int height = img.height;
-    std::cout<<"height "<< height << std::endl;
     int rowSize = ((width + 3) / 4) * 4;
-    std::cout<<"rowSize "<< rowSize << std::endl;
     int padding = rowSize - width;
-    std::cout<<"padding "<< padding << std::endl;
-
-    std::cout<<"outSize "<< outSize << std::endl;
 
     // File header
     BitmapFileHeader fileHeader{
@@ -412,46 +467,47 @@ void ImageHandler::createBMPTest(const std::string &filename, const RawImageData
         height,   // biHeight
         1,        // biPlanes
         8,        // biBitCount
-        0,        // biImageHandler
-        0,        // biSizeImage
+        0,        // biCompression
+        (uint32_t)rowSize * height, // biSizeImage
         2835,     // biXPelsPerMeter
         2835,     // biYPelsPerMeter
         256,      // biClrUsed
         256,      // biClrImportant
-        0, 0, 0, 0,             // masks
-        0x73524742,              // bV5CSType
-        {0},                     // bV5Endpoints
-        0, 0, 0, 0, 0, 0, 0      // gamma, intent, profile, reserved
+        0, 0, 0, 0, // masks
+        0x73524742,  // bV5CSType
+        {0},         // bV5Endpoints
+        0, 0, 0, 0, 0, 0, 0 // gamma, intent, profile, reserved
     };
-    dibHeader.biWidth = width;
-    dibHeader.biHeight = height;
-    dibHeader.biSizeImage = rowSize * height;
 
     // Open file
     std::ofstream file(filename, std::ios::out | std::ios::binary);
-        if (!file) {
-            throw std::runtime_error("Cannot create BMP file");
-        }
+    if (!file) {
+        throw std::runtime_error("Cannot create BMP file");
+    }
 
+    // Write headers
     file.write(reinterpret_cast<char*>(&fileHeader), sizeof(fileHeader));
     file.write(reinterpret_cast<char*>(&dibHeader), sizeof(dibHeader));
 
     // Write grayscale palette
-    for (int i=0; i<256; ++i) {
-        unsigned char color[4] = { (unsigned char)i, (unsigned char)i, (unsigned char)i, 0 };
+    for (int i = 0; i < 256; ++i) {
+        unsigned char color[4] = { static_cast<unsigned char>(i),
+                                  static_cast<unsigned char>(i),
+                                  static_cast<unsigned char>(i), 0 };
         file.write(reinterpret_cast<char*>(color), 4);
     }
 
     // Write pixel data (bottom-up)
     std::vector<unsigned char> pad(padding, 0);
-    for (int j=height-1; j>=0; --j) {
-        file.write(reinterpret_cast<char*>(img.data + j*width), width);
-        if (padding) file.write(reinterpret_cast<char*>(pad.data()), padding);
+    for (int j = height - 1; j >= 0; --j) {
+        file.write(reinterpret_cast<const char*>(img.data + j * width), width);
+        if (padding > 0) {
+            file.write(reinterpret_cast<const char*>(pad.data()), padding);
+        }
     }
     file.close();
 }
 
-//void ImageHandler::_writeBMP(const std::string& filename, const RawImageData& image) {
-
-//}
-
+void ImageHandler::_writeBMP(const std::string& filename, const RawImageData &image) {
+    createBMPTest(filename, image);
+}

@@ -9,6 +9,7 @@
 #include <memory>
 #include <cmath>
 #include <bitset>
+#include <cstdint>
 
 #pragma pack(push, 1)
 
@@ -48,150 +49,81 @@ struct BitmapV5Header {
 };
 
 struct RawImageData {
-    int width; // image width in pixels
-    int height; // image height in pixels
-    unsigned char *data; // Pointer to image data. data[j * width + i] is color of pixel in row j and column i.
+    int width = 0;
+    int height = 0;
+    unsigned char * data = nullptr; // Pointer to image data. data[j * width + i] is color of pixel in row j and column i.
 
-    // Destructor to free allocated memory
     ~RawImageData();
+    
+    // Disable copying to prevent double-free
+    RawImageData() = default;
+    RawImageData(const RawImageData&) = delete;
+    RawImageData& operator=(const RawImageData&) = delete;
+    
+    // Allow move
+    RawImageData(RawImageData&& other) noexcept : width(other.width), height(other.height), data(other.data) {
+        other.data = nullptr;
+        other.width = 0;
+        other.height = 0;
+    }
+    RawImageData& operator=(RawImageData&& other) noexcept {
+        if (this != &other) {
+            delete[] data;
+            width = other.width;
+            height = other.height;
+            data = other.data;
+            other.data = nullptr;
+            other.width = 0;
+            other.height = 0;
+        }
+        return *this;
+    }
 };
 
 class BitPacker {
 public:
+    BitPacker() = default;
+    BitPacker(const BitPacker&) = delete;
+    BitPacker& operator=(const BitPacker&) = delete;
 
-    bool eof() const { return currentByte >= _byteBuffer.size(); }
+    // Write operations
+    void flush();
+    void pushBit(bool bit);
+    void pushBits(const std::vector<bool>& bits);
+    void pushByte(uint8_t byte) ;
+    std::vector<uint8_t> getBuffer() const;
 
-    void flush() { //write
-        if (bitIndex > 0) {
-            // Додаємо паддінг (заповнюємо залишкові біти нулями)
-            _byteBuffer.push_back(currentByte); // записуємо остаточний байт
-            currentByte = 0;
-            bitIndex = 0;
-        }
-    }
-
-    void flushRead() {
-        if (bitIndex > 0) {
-            // Додаємо паддінг (заповнюємо залишкові біти нулями)
-            _byteBuffer.push_back(currentByte); // записуємо остаточний байт
-            currentByte = 0;
-            bitIndex = 0;
-        }
-    }
-
-    void pushBit(bool bit) {
-        if (bitIndex == 8) {
-            //std::cout<<"Full byte, add new"<<std::endl;
-            _byteBuffer.push_back(currentByte);
-            currentByte = 0;
-            bitIndex = 0;
-        }
-
-        currentByte |= (bit << (7 - bitIndex));
-        //std::cout << "currentByte: " << std::bitset<8>(currentByte) << std::endl;
-        ++bitIndex;
-    }
-
-    void pushBits(const std::vector<bool>& bits) {
-        for (bool bit : bits) {
-            pushBit(bit);
-        }
-    }
-
-    void pushByte(uint8_t byte) {
-        //std::cout << "pushByte: " << std::bitset<8>(byte) << std::endl;
-        for (int i = 7; i >= 0; --i) {
-            //std::cout << "bit: " << std::bitset<8>((byte >> i) & 1) << std::endl;
-            pushBit((byte >> i) & 1);
-        }
-        //printBinBuffer();
-    }
-
-    void printBinBuffer() {
-        std::cout << "Buffer in bin format: " << std::endl;
-        for (auto byte : _byteBuffer) {
-            std::cout << std::bitset<8>(byte);
-        }
-
-        if (bitIndex > 0) {
-            for (int i = 7; i >= bitIndex; --i) {
-                std::cout << "0";  //padding
-            }
-            for (int i = bitIndex - 1; i >= 0; --i) {
-                std::cout << ((currentByte >> i) & 1);
-            }
-        }
-        std::cout << std::endl;
-    }
-    void printHexBuffer() {
-        std::cout << "Buffer in hex format: " << std::endl;
-        for (size_t k = 0; k < _byteBuffer.size() ; ++k) {
-            std::cout << std::hex << static_cast<int>(_byteBuffer[k]) << " ";
-        }
-        std::cout << std::endl;
-    }
-
-    std::vector<uint8_t> getBuffer() const {
-        return _byteBuffer;
-    }
-
-    void setBuffer(std::vector<uint8_t>&& data) {
-        _byteBuffer = std::move(data);
-        currentByte = 0;
-        bitIndex = 0;
-    }
-
-    bool readBit() {
-        if (currentByte >= _byteBuffer.size()) {
-            throw std::runtime_error("End of buffer");
-        }
-        //std::cout << std::bitset<8>(_byteBuffer[currentByte]) << " *"<< std::endl;
-        bool bit = (_byteBuffer[currentByte] >> (7 - bitIndex)) & 1;
-        bitIndex++;
-        if (bitIndex == 8) {
-            bitIndex = 0;
-            currentByte++;
-        }
-        std::cout << bit << " ";
-        return bit;
-    }
-
-    // читає n бітів і повертає у uint8_t (max 8 біт)
-    uint8_t readBits(int n) {
-        std::cout << "readBits" << std::endl;
-        uint8_t value = 0;
-        for (int i = 0; i < n; ++i) {
-            value <<= 1;
-            value |= readBit() ? 1 : 0;
-        }
-        return value;
-    }
+    // Read operations
+    void setBuffer(std::vector<uint8_t>&& data);
+    bool eof() const;
+    bool readBit();
+    uint8_t readBits(int n);
+    void printBinBuffer() const;
+    void printHexBuffer() const;
 
 private:
     std::vector<uint8_t> _byteBuffer;
-    uint8_t currentByte = 0;
-    int bitIndex = 0;
+    mutable size_t readIndex = 0;
+    mutable int bitIndex = 0;
+    uint8_t writeByte = 0;
 };
 
-class ImageHandler
-{
-
+class ImageHandler {
 public:
-    ImageHandler(/*BitPacker& compressor*/);
-    //~ImageHandler();
+    ImageHandler() = default;
 
     void compressImage(const std::string& inputFilename, const std::string& outputFilename);
     void restoreImage(const std::string& compressedFilename, const std::string& restoredFilename);
-    void createBMPTest(const std::string& filename, const RawImageData &image, size_t outSize);
+    void createBMPTest(const std::string& filename, const RawImageData &image);
     void writeToFile(const std::string& filename,
                      const std::vector<bool>& emptyRows,
                      const std::vector<uint8_t>& compressedData,
                      uint32_t width, uint32_t height);
 
-
 private:
-    //BitPacker& compressor;
-    void _decodePixels(BitPacker& bitPacker, unsigned char* imgData, std::vector<bool> emptyRows, size_t& outSize);
+    void _decodePixels(BitPacker& bitPacker, unsigned char* imgData,
+                      const std::vector<bool>& emptyRows,
+                      int width, int height, size_t& outSize);
     RawImageData _readBMP(const std::string &filename);
     RawImageData _readBarch(const std::string &filename);
     void _writeBMP(const std::string& filename, const RawImageData &image);
