@@ -35,7 +35,7 @@ void ImageHandler::writeToFile(const std::string& filename,
     // Pack vector to bytes
     size_t bitCount = emptyRows.size();
     std::cout<<std::dec<< "bitCount "<< bitCount <<std::endl;
-    size_t byteCount = ceil(bitCount / 8);// every 8bit = 2 bytes
+    size_t byteCount = (bitCount + 7) / 8;// every 8bit = 2 bytes
     std::cout<<"byteCount "<< byteCount <<std::endl;
     std::vector<uint8_t> rowIndex(byteCount, 0);
 
@@ -116,10 +116,10 @@ void ImageHandler::_decodePixels(BitPacker& bitPacker, unsigned char* imgData, s
     std::cout << "_decodePixels" << std::endl;
     std::vector<unsigned char> temp;
 
-    int totalPixels = 825*68;
+    int totalPixels = 825*1200;
     int decodedPixels = 0;
 
-    for (size_t row = 0; row < 69/*emptyRows.size()*/; ++row) { //2 non empty rows
+    for (size_t row = 0; row < 1200/*emptyRows.size()*/; ++row) { //2 non empty rows
         std::cout << std::dec<<  "vector capacity " << temp.capacity() << std::endl;
         std::cout << std::dec<<  "vector size " << temp.size() << std::endl;
         if (emptyRows[row]) {
@@ -131,45 +131,46 @@ void ImageHandler::_decodePixels(BitPacker& bitPacker, unsigned char* imgData, s
             std::cout << "row " << row << std::endl;
             int rowPixels = 0;
             while (rowPixels < 825) {
+                int pixelsToWrite = std::min(4, 825 - rowPixels);
                 bool firstBit = bitPacker.readBit();
                 if (!firstBit) {
                     // 0 → 4 white
-                    temp.insert(temp.end(), 4, 0xFF);
-                    decodedPixels += 4;
-                    rowPixels += 4;
+                    temp.insert(temp.end(), pixelsToWrite, 0xFF);
+                    decodedPixels += pixelsToWrite;
+                    rowPixels += pixelsToWrite;
                     std::cout<<std::dec<<"+ 4 white "<< " ";
                     std::cout << "rowPixels " << rowPixels << std::endl;
                 } else {
                     bool secondBit = bitPacker.readBit();
                     if (!secondBit) {
                         // 10 → 4 black
-                        temp.insert(temp.end(), 4, 0x00);
-                        decodedPixels += 4;
-                        rowPixels += 4;
+                        temp.insert(temp.end(), pixelsToWrite, 0x00);
+                        decodedPixels += pixelsToWrite;
+                        rowPixels += pixelsToWrite;
                         std::cout<<std::dec<<"+ 4 black "<< " ";
                         std::cout << "rowPixels " << rowPixels << std::endl;
                     } else {
                         // 11 → 4 mixed
-                        for (int i = 0; i < 4; ++i) {
+                        for (int i = 0; i < pixelsToWrite; ++i) {
                             uint8_t color = bitPacker.readBits(8);
                             temp.push_back(color);
                         }
-                        decodedPixels += 4;
-                        rowPixels += 4;
+                        decodedPixels += pixelsToWrite;
+                        rowPixels += pixelsToWrite;
                         std::cout<<std::dec<<"+ 4 mixed "<< " ";
                         std::cout << "rowPixels " << rowPixels << std::endl;
                     }
                 }
             }
-            std::cout<<std::dec<<"- 3 additional "<< " ";
-            for (int i = 0; i<3/*padding*/; ++i) {
+            //std::cout<<std::dec<<"- 3 additional "<< " ";
+            /*for (int i = 0; i<3; ++i) {
                 temp.pop_back();
                 decodedPixels -= 1;
                 rowPixels -= 1;
-            }
-            for (int i = 0; i<24; ++i) { //to read to the end of prev block
+            }*/
+            /*for (int i = 0; i<24; ++i) { //to read to the end of prev block
                 bitPacker.readBit();
-            }
+            }*/
             std::cout << "decodedPixels All " << decodedPixels << std::endl;
             std::cout << "rowPixels " << rowPixels << std::endl;
         }
@@ -228,7 +229,7 @@ RawImageData ImageHandler::_readBarch(const std::string &compressedFilename) {
 
     // EmptyRows size = height
     size_t bitCount = img.height;
-    size_t byteCount = ceil(bitCount / 8);
+    size_t byteCount = (bitCount + 7) / 8;
     std::cout<< std::dec << "byteCount " << byteCount << std::endl;
 
     std::vector<uint8_t> rowBytes(byteCount);
@@ -305,7 +306,7 @@ void ImageHandler::compressImage(const std::string& inputFilename, const std::st
     BitPacker bitPacker;
 
     // for now encode only 65th row (first non emty)
-    for (int j = 65; j < 70; ++j) {
+    for (int j = 0; j < height; ++j) {
         if (emptyRows[j]) continue; // don`t encode empty rows
 
         std::cout << std::dec << "Row pixels of " << j << std::endl;
@@ -347,12 +348,12 @@ void ImageHandler::compressImage(const std::string& inputFilename, const std::st
                 //bitPacker.printBinBuffer();
             }
             // add padding for block <  4
-            if (blockSize < 4) {
+            /*if (blockSize < 4) {
                 std::cout<< "Added padding, block size was " << blockSize << std::endl;
                 for (int k = blockSize; k < 4; ++k) {
                     bitPacker.pushByte(0xFF);
                 }
-            }
+            }*/
         }
     }
     bitPacker.flush();
@@ -450,7 +451,7 @@ void ImageHandler::createBMPTest(const std::string &filename, const RawImageData
     file.close();
 }
 
-void ImageHandler::_writeBMP(const std::string& filename, const RawImageData& image) {
+//void ImageHandler::_writeBMP(const std::string& filename, const RawImageData& image) {
 
-}
+//}
 
