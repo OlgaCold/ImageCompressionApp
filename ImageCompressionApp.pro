@@ -1,21 +1,13 @@
-QT += quick
-
-HEADERS += $$PWD/compressionLib/compression.h
+QT += quick qml quickcontrols2 concurrent
+CONFIG += c++11
+TEMPLATE = app
 
 SOURCES += main.cpp
 
 RESOURCES += qml.qrc
 
-INCLUDEPATH += $$PWD/compressionLib
-LIBS += -L$$PWD/compressionLib -lcompression
+INCLUDEPATH += $$PWD/compressionLib \
+               $$PWD/MyQmlComponents
 
-# Additional import path used to resolve QML modules in Qt Creator's code model
-QML_IMPORT_PATH =
-
-# Additional import path used to resolve QML modules just for Qt Quick Designer
-QML_DESIGNER_IMPORT_PATH =
-
-# Default rules for deployment.
-qnx: target.path = /tmp/$${TARGET}/bin
-else: unix:!android: target.path = /opt/$${TARGET}/bin
-!isEmpty(target.path): INSTALLS += target
+LIBS += -L$$PWD/compressionLib -lcompression \
+        -L$$PWD/build/MyQmlComponents -lMyQmlComponentsPlugin

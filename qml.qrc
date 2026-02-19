@@ -1,5 +1,6 @@
 <RCC>
-    <qresource prefix="/">
-        <file>main.qml</file>
-    </qresource>
+  <qresource prefix="/qml">
+    <file alias="Main.qml">MyQmlComponents/qml/Main.qml</file>
+    <file alias="ErrorDialog.qml">MyQmlComponents/qml/ErrorDialog.qml</file>
+  </qresource>
 </RCC>

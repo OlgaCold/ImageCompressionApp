@@ -1,36 +1,37 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QDir>
+#include <QCoreApplication>
 
-#include "compressionLib/compression.h"
+int main(int argc, char **argv) {
+    QGuiApplication app(argc, argv);
+    QString startDir;
+    if (argc > 1) {
+        QString cand = QString::fromLocal8Bit(argv[1]);
+        QDir d(cand);
+        if (d.exists()) startDir = d.absolutePath();
+    }
 
-int main(/*int argc, char *argv[]*/)
-{
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-    //QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-#endif
-    //QGuiApplication app(argc, argv);
+    if (startDir.isEmpty()) {
+        QDir appDir(QCoreApplication::applicationDirPath());
+        QString cand = appDir.filePath("resources");
+        if (QDir(cand).exists()) {
+            startDir = QDir(cand).absolutePath();
+        } else {
+            appDir.cdUp();
+            cand = appDir.filePath("resources");
+            if (QDir(cand).exists()) {
+                startDir = QDir(cand).absolutePath();
+            } else {
+                startDir = QDir::currentPath();
+            }
+        }
+    }
 
-    //QQmlApplicationEngine engine;
-    //const QUrl url(QStringLiteral("qrc:/main.qml"));
-    //QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
-    //                 &app, [url](QObject *obj, const QUrl &objUrl) {
-    //    if (!obj && url == objUrl)
-    //        QCoreApplication::exit(-1);
-    //}, Qt::QueuedConnection);
-    //engine.load(url);
-
-    ImageHandler *lib = new ImageHandler();
-
-    const std::string inputFilename = "../resources/test-image-1-gs.bmp";
-    const std::string compressedFilename = "compressed_image.barch";
-    const std::string restoredFilename = "restored_image.bmp";
-
-    lib->compressImage(inputFilename, compressedFilename);
-
-    lib->restoreImage(compressedFilename, restoredFilename);
-
-    std::cout << "Testing complete." << std::endl;
-
-    return 0;
-    //return app.exec();
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("startDirectory", startDir);
+    engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
+    if (engine.rootObjects().isEmpty()) return -1;
+    return app.exec();
 }
