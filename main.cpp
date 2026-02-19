@@ -3,35 +3,37 @@
 #include <QQmlContext>
 #include <QDir>
 #include <QCoreApplication>
+#include "MyQmlComponents/filemodel.h"
 
-int main(int argc, char **argv) {
+int main(int argc, char *argv[])
+{
+    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+
     QGuiApplication app(argc, argv);
-    QString startDir;
+
+    QString dir;
     if (argc > 1) {
-        QString cand = QString::fromLocal8Bit(argv[1]);
-        QDir d(cand);
-        if (d.exists()) startDir = d.absolutePath();
+        dir = QString::fromLocal8Bit(argv[1]);
+    } else {
+        QString appDir = QCoreApplication::applicationDirPath();
+        QDir candidate(appDir);
+        candidate.cdUp();
+        candidate.cd("resources");
+        if (candidate.exists())
+            dir = candidate.absolutePath();
+        else
+            dir = QDir::currentPath();
     }
 
-    if (startDir.isEmpty()) {
-        QDir appDir(QCoreApplication::applicationDirPath());
-        QString cand = appDir.filePath("resources");
-        if (QDir(cand).exists()) {
-            startDir = QDir(cand).absolutePath();
-        } else {
-            appDir.cdUp();
-            cand = appDir.filePath("resources");
-            if (QDir(cand).exists()) {
-                startDir = QDir(cand).absolutePath();
-            } else {
-                startDir = QDir::currentPath();
-            }
-        }
-    }
+    FileModel model;
+    model.setDirectory(dir);
+    //model.setExtensions(QStringList{"*.bmp", "*.barch", "*.png"});
 
     QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty("startDirectory", startDir);
-    engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
-    if (engine.rootObjects().isEmpty()) return -1;
+    engine.rootContext()->setContextProperty("fileModel", &model);
+    engine.load(QUrl(QStringLiteral("qrc:/MyQmlComponents/qml/Main.qml")));
+    if (engine.rootObjects().isEmpty())
+        return -1;
+
     return app.exec();
 }

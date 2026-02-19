@@ -11,6 +11,7 @@ struct FileItem { QString name; QString path; qint64 size=0; QString status; QSt
 class FileModel : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(QString directory READ directory WRITE setDirectory NOTIFY directoryChanged)
+    Q_PROPERTY(QStringList extensions READ extensions WRITE setExtensions NOTIFY extensionsChanged)
 public:
     enum Roles { NameRole = Qt::UserRole+1, SizeRole, StatusRole, PathRole, ExtRole };
     explicit FileModel(QObject* parent=nullptr);
@@ -19,18 +20,22 @@ public:
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    QString directory() const { return m_dir.path(); }
+    QString directory() const { return m_dir.absolutePath(); }
+    QStringList extensions() const { return m_extensions; }
 
 public slots:
     void setDirectory(const QString& dir);
+    void setExtensions(const QStringList& exts);
     Q_INVOKABLE void activate(int index);
 
 signals:
     void directoryChanged();
+    void extensionsChanged();
     void errorRequested(const QString &message);
 
 private:
     void rescan();
     QVector<FileItem> m_items;
     QDir m_dir;
+    QStringList m_extensions = {"*.bmp", "*.png", "*.barch"};
 };

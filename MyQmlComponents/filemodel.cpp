@@ -7,7 +7,10 @@
 
 #include <compression.h>
 
-FileModel::FileModel(QObject* parent) : QAbstractListModel(parent) {}
+FileModel::FileModel(QObject* parent) : QAbstractListModel(parent) {
+    // current dir by default
+    setDirectory(QDir::currentPath());
+}
 
 int FileModel::rowCount(const QModelIndex&) const { return m_items.size(); }
 
@@ -25,7 +28,7 @@ QVariant FileModel::data(const QModelIndex& index, int role) const {
 }
 
 QHash<int, QByteArray> FileModel::roleNames() const {
-    return { {NameRole,"name"},{SizeRole,"size"},{StatusRole,"status"},{PathRole,"path"},{ExtRole,"ext"} };
+    return { {NameRole,"name"}, {SizeRole,"size"}, {StatusRole,"status"}, {PathRole,"path"}, {ExtRole,"ext"} };
 }
 
 void FileModel::setDirectory(const QString& dir) {
@@ -36,20 +39,29 @@ void FileModel::setDirectory(const QString& dir) {
     emit directoryChanged();
 }
 
+void FileModel::setExtensions(const QStringList& exts) {
+    if (m_extensions != exts) {
+        m_extensions = exts;
+        rescan();  // with new filters
+        emit extensionsChanged();
+    }
+}
+
 void FileModel::rescan() {
     beginResetModel();
     m_items.clear();
-    QStringList filters = {"*.bmp","*.png","*.barch"};
-    QFileInfoList list = m_dir.entryInfoList(filters, QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
+
+    QFileInfoList list = m_dir.entryInfoList(m_extensions, QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
     for (const QFileInfo &fi : list) {
         FileItem it;
         it.name = fi.fileName();
         it.path = fi.absoluteFilePath();
         it.size = fi.size();
         it.ext = fi.suffix().toLower();
+        it.status.clear();
         m_items.append(it);
     }
-    qDebug() << "FileModel::rescan" << m_dir.path() << "found" << m_items.size() << "items";
+    qDebug() << "FileModel::rescan" << m_dir.path() << "found" << m_items.size() << "items with filters:" << m_extensions;
     endResetModel();
 }
 
@@ -92,6 +104,9 @@ void FileModel::activate(int index) {
                 emit dataChanged(mi2, mi2, {StatusRole});
             }, Qt::QueuedConnection);
         });
+        
+        rescan();  // to update list with new files after processing
+        emit directoryChanged(); //not working
     } else {
         emit errorRequested(QStringLiteral("Unknown file"));
     }
