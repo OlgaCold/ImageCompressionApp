@@ -1,39 +1,50 @@
+#include "CompressionUI/filemodel.h"
+#include <QCoreApplication>
+#include <QDir>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
-#include <QDir>
-#include <QCoreApplication>
-#include "MyQmlComponents/filemodel.h"
+#include <iostream>
 
-int main(int argc, char *argv[])
-{
-    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+int main(int argc, char *argv[]) {
+  QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 
-    QGuiApplication app(argc, argv);
+  QGuiApplication app(argc, argv);
 
-    QString dir;
-    if (argc > 1) {
-        dir = QString::fromLocal8Bit(argv[1]);
+  QString dir;
+  bool dirValid = false;
+
+  if (argc > 1) {
+    QString argPath = QString::fromLocal8Bit(argv[1]);
+    if (QDir(argPath).exists()) {
+      dir = argPath;
+      dirValid = true;
     } else {
-        QString appDir = QCoreApplication::applicationDirPath();
-        QDir candidate(appDir);
-        candidate.cdUp();
-        candidate.cd("resources");
-        if (candidate.exists())
-            dir = candidate.absolutePath();
-        else
-            dir = QDir::currentPath();
+      std::cerr << "Warning: Folder does not exist: " << argPath.toStdString()
+                << ". Falling back to defaults." << std::endl;
     }
+  }
 
-    FileModel model;
-    model.setDirectory(dir);
-    //model.setExtensions(QStringList{"*.bmp", "*.barch", "*.png"});
+  if (!dirValid) {
+    QString appDir = QCoreApplication::applicationDirPath();
+    QDir candidate(appDir);
+    candidate.cdUp();
+    candidate.cd("resources");
+    if (candidate.exists())
+      dir = candidate.absolutePath();
+    else
+      dir = QDir::currentPath();
+  }
 
-    QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty("fileModel", &model);
-    engine.load(QUrl(QStringLiteral("qrc:/MyQmlComponents/qml/Main.qml")));
-    if (engine.rootObjects().isEmpty())
-        return -1;
+  FileModel model;
+  model.setDirectory(dir);
+  // model.setExtensions(QStringList{"*.bmp", "*.barch", "*.png"});
 
-    return app.exec();
+  QQmlApplicationEngine engine;
+  engine.rootContext()->setContextProperty("fileModel", &model);
+  engine.load(QUrl(QStringLiteral("qrc:/CompressionUI/qml/Main.qml")));
+  if (engine.rootObjects().isEmpty())
+    return -1;
+
+  return app.exec();
 }

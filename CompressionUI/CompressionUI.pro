@@ -1,9 +1,9 @@
 QT += qml quick concurrent
 CONFIG += plugin c++11
 TEMPLATE = lib
-TARGET = MyQmlComponentsPlugin
+TARGET = CompressionUIPlugin
 
-SOURCES += myqmlcomponentsplugin.cpp \
+SOURCES += compressionuiplugin.cpp \
            filemodel.cpp
 
 HEADERS += filemodel.h

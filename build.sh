@@ -15,7 +15,7 @@ echo "Parallel jobs: $NPROC"
 
 mkdir -p "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/compressionLib"
-mkdir -p "$BUILD_DIR/MyQmlComponents"
+mkdir -p "$BUILD_DIR/CompressionUI"
 
 # 1) Build compressionLib -> build/compressionLib
 COMP_SRC="$BASEDIR/compressionLib"
@@ -31,14 +31,14 @@ else
   exit 1
 fi
 
-# 2) Build MyQmlComponents -> build/MyQmlComponents
-QML_SRC="$BASEDIR/MyQmlComponents"
-QML_BUILD="$BUILD_DIR/MyQmlComponents"
+# 2) Build CompressionUI -> build/CompressionUI
+QML_SRC="$BASEDIR/CompressionUI"
+QML_BUILD="$BUILD_DIR/CompressionUI"
 if [ -d "$QML_SRC" ]; then
-  echo "--- Building MyQmlComponents -> $QML_BUILD ---"
+  echo "--- Building CompressionUI -> $QML_BUILD ---"
   pushd "$QML_BUILD" >/dev/null
-  qmake "$QML_SRC/MyQmlComponents.pro" || { echo "qmake failed for MyQmlComponents" >&2; popd >/dev/null; exit 1; }
-  make -j"$NPROC" || { echo "make failed for MyQmlComponents" >&2; popd >/dev/null; exit 1; }
+  qmake "$QML_SRC/CompressionUI.pro" || { echo "qmake failed for CompressionUI" >&2; popd >/dev/null; exit 1; }
+  make -j"$NPROC" || { echo "make failed for CompressionUI" >&2; popd >/dev/null; exit 1; }
   popd >/dev/null
 
   # ensure qmldir next to plugin
@@ -46,8 +46,8 @@ if [ -d "$QML_SRC" ]; then
     cp -f "$QML_SRC/qmldir" "$QML_BUILD/" || true
   else
     cat > "$QML_BUILD/qmldir" <<EOF
-module MyQmlComponents
-plugin MyQmlComponentsPlugin
+module CompressionUI
+plugin CompressionUIPlugin
 EOF
   fi
 else

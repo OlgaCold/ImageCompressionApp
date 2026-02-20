@@ -1,0 +1,2 @@
+module CompressionUI
+plugin CompressionUIPlugin

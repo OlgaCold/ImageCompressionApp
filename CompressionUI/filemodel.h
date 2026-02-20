@@ -6,12 +6,19 @@
 extern void compressImage(const std::string& inputFilename, const std::string& outputFilename);
 extern void restoreImage(const std::string& compressedFilename, const std::string& restoredFilename);
 
-struct FileItem { QString name; QString path; qint64 size=0; QString status; QString ext; };
+struct FileItem {
+    QString name;
+    QString path;
+    qint64 size=0;
+    QString status;
+    QString ext;
+};
 
 class FileModel : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(QString directory READ directory WRITE setDirectory NOTIFY directoryChanged)
     Q_PROPERTY(QStringList extensions READ extensions WRITE setExtensions NOTIFY extensionsChanged)
+    //Q_PROPERTY(QString processState READ processState WRITE setProcessState NOTIFY processStateChanged)
 public:
     enum Roles { NameRole = Qt::UserRole+1, SizeRole, StatusRole, PathRole, ExtRole };
     explicit FileModel(QObject* parent=nullptr);
@@ -26,11 +33,13 @@ public:
 public slots:
     void setDirectory(const QString& dir);
     void setExtensions(const QStringList& exts);
+    //void setProcessState();
     Q_INVOKABLE void activate(int index);
 
 signals:
     void directoryChanged();
     void extensionsChanged();
+    //void processStateChanged();
     void errorRequested(const QString &message);
 
 private:

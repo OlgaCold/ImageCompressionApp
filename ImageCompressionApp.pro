@@ -7,7 +7,7 @@ SOURCES += main.cpp
 RESOURCES += qml.qrc
 
 INCLUDEPATH += $$PWD/compressionLib \
-               $$PWD/MyQmlComponents
+               $$PWD/CompressionUI
 
 LIBS += -L$$PWD/compressionLib -lcompression \
-        -L$$PWD/build/MyQmlComponents -lMyQmlComponentsPlugin
+        -L$$PWD/build/CompressionUI -lCompressionUIPlugin

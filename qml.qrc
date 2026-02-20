@@ -1,7 +1,8 @@
-<!DOCTYPE RCC>
 <RCC>
-  <qresource prefix="/">
-    <file>MyQmlComponents/qml/ErrorDialog.qml</file>
-    <file>MyQmlComponents/qml/Main.qml</file>
-  </qresource>
+    <qresource prefix="/">
+        <file>CompressionUI/qml/ErrorDialog.qml</file>
+        <file>CompressionUI/qml/Main.qml</file>
+        <file>CompressionUI/qml/CustomTooltip.qml</file>
+        <file>CompressionUI/qml/CustomButton.qml</file>
+    </qresource>
 </RCC>

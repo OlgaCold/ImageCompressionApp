@@ -202,7 +202,7 @@ RawImageData ImageHandler::_readBMP(const std::string &filename) {
 void ImageHandler::_decodePixels(BitPacker& bitPacker, unsigned char* imgData,
                                 const std::vector<bool>& emptyRows,
                                 int width, int height, size_t& outSize) {
-    std::cout << "_decodePixels" << std::endl;
+    //std::cout << "_decodePixels" << std::endl;
     std::vector<unsigned char> temp;
     int totalPixels = width * height;
     int decodedPixels = 0;
@@ -217,12 +217,12 @@ void ImageHandler::_decodePixels(BitPacker& bitPacker, unsigned char* imgData,
     for (int row = 0; row < height; ++row) {
         if (emptyRows[row]) {
             // Empty row - fill with white pixels
-            std::cout << "Row " << row << " is empty, filling with white pixels" << std::endl;
+            //std::cout << "Row " << row << " is empty, filling with white pixels" << std::endl;
             temp.insert(temp.end(), width, 0xFF);
             decodedPixels += width;
         } else {
             nonEmptyRows++;
-            std::cout << "Row " << row << " is non-empty, decoding..." << std::endl;
+            //std::cout << "Row " << row << " is non-empty, decoding..." << std::endl;
             // Non-empty row - decode compressed data
             int rowPixels = 0;
             while (rowPixels < width) {
@@ -278,13 +278,13 @@ void ImageHandler::_decodePixels(BitPacker& bitPacker, unsigned char* imgData,
         }
     }
 
-    std::cout << "Blocks: " << blockCount
+    /*std::cout << "Blocks: " << blockCount
               << " (White: " << whiteBlocks
               << ", Black: " << blackBlocks
               << ", Mixed: " << mixedBlocks << ")" << std::endl;
     std::cout << "Non-empty rows: " << nonEmptyRows << std::endl;
     std::cout << "Decoded pixels: " << decodedPixels
-              << " / " << totalPixels << std::endl;
+              << " / " << totalPixels << std::endl;*/
 
     outSize = static_cast<size_t>(totalPixels);
     size_t copySize = std::min(temp.size(), static_cast<size_t>(outSize));
@@ -370,6 +370,8 @@ RawImageData ImageHandler::_readBarch(const std::string &compressedFilename) {
 }
 
 void ImageHandler::compressImage(const std::string& inputFilename, const std::string &outputFilename) {
+    std::cout << "Compress Image" << std::endl;
+
     RawImageData img = _readBMP(inputFilename);
     int width = img.width;
     int height = img.height;
@@ -430,20 +432,8 @@ void ImageHandler::compressImage(const std::string& inputFilename, const std::st
     writeToFile(outputFilename, emptyRows, bitPacker.getBuffer(), width, height);
 }
 
-void ImageHandler::restoreImage(const std::string& compressedFilename, const std::string &restoredFilename) {
-    std::cout << "restoreImage" << std::endl;
-
-    try {
-        RawImageData img = _readBarch(compressedFilename);
-        createBMPTest(restoredFilename, img);
-    } catch (const std::exception& e) {
-        std::cerr << "Error during restore: " << e.what() << std::endl;
-        throw;
-    }
-}
-
-void ImageHandler::createBMPTest(const std::string &filename, const RawImageData &img) {
-    std::cout << "createBMPTest" << std::endl;
+void ImageHandler::createBMP(const std::string &filename, const RawImageData &img) {
+    //std::cout << "createBMP" << std::endl;
     int width = img.width;
     int height = img.height;
     int rowSize = ((width + 3) / 4) * 4;
@@ -508,6 +498,18 @@ void ImageHandler::createBMPTest(const std::string &filename, const RawImageData
     file.close();
 }
 
+void ImageHandler::restoreImage(const std::string& compressedFilename, const std::string &restoredFilename) {
+    std::cout << "Restore Image" << std::endl;
+
+    try {
+        RawImageData img = _readBarch(compressedFilename);
+        createBMP(restoredFilename, img);
+    } catch (const std::exception& e) {
+        std::cerr << "Error during restore: " << e.what() << std::endl;
+        throw;
+    }
+}
+
 void ImageHandler::_writeBMP(const std::string& filename, const RawImageData &image) {
-    createBMPTest(filename, image);
+    createBMP(filename, image);
 }

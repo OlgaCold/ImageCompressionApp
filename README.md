@@ -9,7 +9,8 @@ The project consists of three main parts:
 * __QML Plugin.__ Custom Qt plugin exposing reusable QML components:
   * Data model
   * Custom button component
-  * Dialog component
+  * Custom dialog component
+  * Custom tooltip component
 
 * __Application Layer.__ QML-based UI built on top of the plugin and linked against the shared library.
 
@@ -57,7 +58,7 @@ build/compressionLib/libcompression.so
 ```
 QML plugin:
 ```bash
-build/plugin/
+build/CompressionUI/
 ```
 Application executable:
 ```bash

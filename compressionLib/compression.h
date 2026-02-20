@@ -114,7 +114,7 @@ public:
 
     void compressImage(const std::string& inputFilename, const std::string& outputFilename);
     void restoreImage(const std::string& compressedFilename, const std::string& restoredFilename);
-    void createBMPTest(const std::string& filename, const RawImageData &image);
+    void createBMP(const std::string& filename, const RawImageData &image);
     void writeToFile(const std::string& filename,
                      const std::vector<bool>& emptyRows,
                      const std::vector<uint8_t>& compressedData,

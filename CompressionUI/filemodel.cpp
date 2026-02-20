@@ -12,10 +12,13 @@ FileModel::FileModel(QObject* parent) : QAbstractListModel(parent) {
     setDirectory(QDir::currentPath());
 }
 
-int FileModel::rowCount(const QModelIndex&) const { return m_items.size(); }
+int FileModel::rowCount(const QModelIndex&) const {
+    return m_items.size();
+}
 
 QVariant FileModel::data(const QModelIndex& index, int role) const {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_items.size()) return {};
+
     const auto &it = m_items.at(index.row());
     switch (role) {
         case NameRole: return it.name;
@@ -76,6 +79,8 @@ void FileModel::activate(int index) {
         emit dataChanged(mi, mi, {StatusRole});
 
         QtConcurrent::run([this, index, path, ext]() {
+            // start processing
+            //setProcessStateChanged();
             int res = -1;
             QString outPath;
             try {
@@ -102,11 +107,11 @@ void FileModel::activate(int index) {
                 m_items[index].status = (res == 0) ? QString() : QStringLiteral("Error");
                 QModelIndex mi2 = createIndex(index, 0);
                 emit dataChanged(mi2, mi2, {StatusRole});
+                rescan();  // to update list with new files after processing
+                emit directoryChanged();
             }, Qt::QueuedConnection);
         });
         
-        rescan();  // to update list with new files after processing
-        emit directoryChanged(); //not working
     } else {
         emit errorRequested(QStringLiteral("Unknown file"));
     }
